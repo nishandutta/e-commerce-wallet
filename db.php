@@ -1,6 +1,6 @@
 <?php
-$host = "localhost";
-$user = "root";
+$host = "dpg-cv9gldogph6c73e8hiu0-a";
+$user = "ecommerce_wallet_user";
 $pass = "";
 $dbname = "ecommerce_wallet";
 
