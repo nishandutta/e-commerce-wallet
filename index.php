@@ -20,7 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['check_balance'])) {
     }
 }
 
-// Cashback Calculation
+// ✅ Cashback Calculation - Preserve User Data
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
     $user_id = intval($_POST['user_id']);
     $purchase_amount = floatval($_POST['purchase_amount']);
@@ -39,14 +39,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
         // Update user's wallet balance
         $update_query = $conn->query("UPDATE users SET wallet_balance = wallet_balance + $cashback_amount WHERE id = $user_id");
 
-        if (!$update_query) {
-            $cashback_message = "❌ Error updating wallet: " . $conn->error;
-        }
-        
         if ($update_query) {
+            // ✅ Fetch updated user balance after cashback
+            $result = $conn->query("SELECT name, wallet_balance FROM users WHERE id = $user_id");
+            if ($result && $result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+            }
+
             $cashback_message = "🎉 Cashback of ₹" . number_format($cashback_amount, 2) . " added to your wallet!";
         } else {
-            $cashback_message = "❌ Failed to apply cashback. Please try again.";
+            $cashback_message = "❌ Error updating wallet: " . $conn->error;
         }
     } else {
         $cashback_message = "❌ Invalid category selected.";
@@ -84,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
 
     <!-- Cashback Application Form -->
     <form method="POST" class="mb-3">
-    <input type="hidden" name="user_id" value="<?= isset($_POST['user_id']) ? htmlspecialchars($_POST['user_id']) : '' ?>">
+        <input type="hidden" name="user_id" value="<?= isset($_POST['user_id']) ? htmlspecialchars($_POST['user_id']) : '' ?>">
         
         <label for="purchase_amount" class="form-label">Enter Purchase Amount:</label>
         <input type="number" name="purchase_amount" id="purchase_amount" class="form-control" required>
