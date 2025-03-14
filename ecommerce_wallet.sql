@@ -4,10 +4,12 @@ USE ecommerce_wallet;
 
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100),
-    email VARCHAR(100) UNIQUE,
-    wallet_balance DECIMAL(10,2) DEFAULT 0.00
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    wallet_balance DECIMAL(10,2) DEFAULT 0
 );
+
 
 CREATE TABLE orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -28,7 +30,3 @@ CREATE TABLE transactions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
-
--- to enter a user
-INSERT INTO users (id, name, email, wallet_balance) 
-VALUES (1, 'John Doe', 'johndoe@mail.com', 1000.00);

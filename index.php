@@ -1,32 +1,32 @@
 <?php
-// Include database connection
+session_start();
 require_once 'db.php';
 
-$user = null;
-$error = "";
-$cashback_message = "";
-
-// Check if form is submitted for user balance
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['check_balance'])) {
-    $user_id = intval($_POST['user_id']); // Convert input to integer
-
-    // Query database
-    $result = $conn->query("SELECT name, wallet_balance FROM users WHERE id = $user_id");
-
-    if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-    } else {
-        $error = "❌ No user found with ID $user_id.";
-    }
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit();
 }
 
-// ✅ Cashback Calculation - Preserve User Data
+$user_id = $_SESSION["user_id"];
+$user = null;
+$cashback_message = "";
+
+// Fetch user details
+$stmt = $conn->prepare("SELECT name, wallet_balance FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+if ($result->num_rows > 0) {
+    $user = $result->fetch_assoc();
+}
+$stmt->close();
+
+// ✅ Apply Cashback
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
-    $user_id = intval($_POST['user_id']);
     $purchase_amount = floatval($_POST['purchase_amount']);
     $category = $_POST['category'];
 
-    // Define cashback percentages
+    // Cashback rates
     $cashback_rates = [
         'A' => 10, // 10% for Category A
         'B' => 2,  // 2% for Category B
@@ -36,19 +36,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
     if (isset($cashback_rates[$category])) {
         $cashback_amount = ($purchase_amount * $cashback_rates[$category]) / 100;
 
-        // Update user's wallet balance
-        $update_query = $conn->query("UPDATE users SET wallet_balance = wallet_balance + $cashback_amount WHERE id = $user_id");
-
-        if ($update_query) {
-            // ✅ Fetch updated user balance after cashback
-            $result = $conn->query("SELECT name, wallet_balance FROM users WHERE id = $user_id");
-            if ($result && $result->num_rows > 0) {
-                $user = $result->fetch_assoc();
+        // Update wallet balance securely
+        $stmt = $conn->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
+        $stmt->bind_param("di", $cashback_amount, $user_id);
+        if ($stmt->execute()) {
+            // Fetch updated balance
+            $stmt = $conn->prepare("SELECT wallet_balance FROM users WHERE id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                $user['wallet_balance'] = $result->fetch_assoc()['wallet_balance'];
             }
+            $stmt->close();
 
-            $cashback_message = "🎉 Cashback of ₹" . number_format($cashback_amount, 2) . " added to your wallet!";
+            $cashback_message = "🎉 ₹" . number_format($cashback_amount, 2) . " cashback added to your wallet!";
         } else {
-            $cashback_message = "❌ Error updating wallet: " . $conn->error;
+            $cashback_message = "❌ Error updating wallet.";
         }
     } else {
         $cashback_message = "❌ Invalid category selected.";
@@ -65,29 +69,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body class="container mt-5">
-    <h2 class="mb-3">🛒 E-commerce Wallet</h2>
-
-    <!-- User ID Input Form -->
-    <form method="POST" class="mb-3">
-        <label for="user_id" class="form-label">Enter User ID:</label>
-        <input type="number" name="user_id" id="user_id" class="form-control" required>
-        <button type="submit" name="check_balance" class="btn btn-primary mt-2">Check Balance</button>
-    </form>
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>🛒 E-commerce Wallet</h2>
+        <a href="logout.php" class="btn btn-danger">Logout</a>
+    </div>
 
     <!-- Display Wallet Balance -->
     <?php if ($user): ?>
-        <div class="alert alert-success">
+        <div class="alert alert-success mt-3">
             <h4>👤 User: <?= htmlspecialchars($user['name']) ?></h4>
             <p>💰 Wallet Balance: ₹<?= number_format((float)$user['wallet_balance'], 2) ?></p>
         </div>
-    <?php elseif ($error): ?>
-        <div class="alert alert-danger"><?= $error ?></div>
     <?php endif; ?>
 
     <!-- Cashback Application Form -->
     <form method="POST" class="mb-3">
-        <input type="hidden" name="user_id" value="<?= isset($_POST['user_id']) ? htmlspecialchars($_POST['user_id']) : '' ?>">
-        
         <label for="purchase_amount" class="form-label">Enter Purchase Amount:</label>
         <input type="number" name="purchase_amount" id="purchase_amount" class="form-control" required>
 
@@ -98,10 +94,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_cashback'])) {
             <option value="C">Category C (7% Cashback)</option>
         </select>
 
-        <button type="submit" name="apply_cashback" class="btn btn-success mt-2">Apply Cashback</button>
+        <button type="submit" name="apply_cashback" class="btn btn-success mt-3">Apply Cashback</button>
     </form>
 
-    <!-- Display Cashback Result -->
+    <!-- Display Cashback Message -->
     <?php if ($cashback_message): ?>
         <div class="alert alert-info"><?= $cashback_message ?></div>
     <?php endif; ?>
